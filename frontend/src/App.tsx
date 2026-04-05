@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
+import { VisionProcessor, ExtractedFeatures } from "./lib/vision";
 
 // --- Types ---
 interface PostureData {
@@ -46,12 +47,18 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem("posturepal-settings", JSON.stringify(settings));
   }, [settings]);
+  
   const [connected, setConnected] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [data, setData] = useState<PostureData | null>(null);
+  
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef<PostureData | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const visionRef = useRef<VisionProcessor | null>(null);
+  const requestRef = useRef<number | null>(null);
 
   // Background Timers
   const [badTimer, setBadTimer] = useState(0);
@@ -148,14 +155,62 @@ const App = () => {
     setData(null);
   }, []);
 
+  const startVision = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      visionRef.current = new VisionProcessor();
+      await visionRef.current.initialize();
+
+      let lastTime = 0;
+      const loop = (time: number) => {
+        // Run vision processing ~10 times per second
+        if (time - lastTime >= 100) {
+          if (videoRef.current && visionRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+            const features = visionRef.current.processFrame(videoRef.current, time);
+            if (features) {
+              wsRef.current.send(JSON.stringify(features));
+            }
+          }
+          lastTime = time;
+        }
+        requestRef.current = requestAnimationFrame(loop);
+      };
+      requestRef.current = requestAnimationFrame(loop);
+    } catch (err) {
+      console.error("Camera access denied or vision init failed", err);
+      setHasError(true);
+      setMonitoring(false);
+    }
+  }, []);
+
+  const stopVision = useCallback(() => {
+    if (requestRef.current) {
+      cancelAnimationFrame(requestRef.current);
+      requestRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    visionRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (monitoring) {
       setSessionStartTime(new Date());
       connectWs();
+      startVision();
     } else {
       stopWs();
+      stopVision();
     }
-  }, [monitoring, connectWs, stopWs]);
+  }, [monitoring, connectWs, stopWs, startVision, stopVision]);
 
   // Background Loop (1Hz tick)
   useEffect(() => {
@@ -230,7 +285,7 @@ const App = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [monitoring, settings, addAlert]);
+  }, [monitoring, settings, addAlert, sessionStartTime]);
 
   // Exported state for children
   const sharedState = {
@@ -258,6 +313,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <video id="webcam" ref={videoRef} autoPlay playsInline style={{ display: "none" }} />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing {...sharedState} />} />
