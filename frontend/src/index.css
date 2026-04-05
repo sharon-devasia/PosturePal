@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 33% 4%;
+    --foreground: 210 20% 90%;
+
+    --card: 210 22% 8%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 210 22% 8%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 160 100% 45%;
+    --primary-foreground: 210 33% 4%;
+
+    --secondary: 210 20% 12%;
+    --secondary-foreground: 210 20% 80%;
+
+    --muted: 210 15% 14%;
+    --muted-foreground: 212 25% 45%;
+
+    --accent: 160 100% 45%;
+    --accent-foreground: 210 33% 4%;
+
+    --destructive: 350 100% 62%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 20 100% 60%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 210 25% 17%;
+    --input: 210 25% 17%;
+    --ring: 160 100% 45%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 210 25% 5%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 160 100% 45%;
+    --sidebar-primary-foreground: 210 33% 4%;
+    --sidebar-accent: 210 20% 12%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 210 25% 17%;
+    --sidebar-ring: 160 100% 45%;
+
+    --font-heading: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+
+    --glow-primary: 0 0 30px hsl(160 100% 45% / 0.3);
+    --glow-primary-strong: 0 0 60px hsl(160 100% 45% / 0.5);
+    --glow-destructive: 0 0 30px hsl(350 100% 62% / 0.3);
+  }
+
+  .light {
+    --background: 210 20% 96%;
+    --foreground: 210 25% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 25% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 25% 10%;
+
+    --primary: 160 100% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 92%;
+    --secondary-foreground: 210 20% 25%;
+
+    --muted: 210 10% 90%;
+    --muted-foreground: 210 15% 45%;
+
+    --accent: 160 100% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 350 85% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 20 90% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 210 15% 85%;
+    --input: 210 15% 85%;
+    --ring: 160 100% 35%;
+
+    --glow-primary: 0 0 20px hsl(160 100% 35% / 0.2);
+    --glow-primary-strong: 0 0 40px hsl(160 100% 35% / 0.3);
+    --glow-destructive: 0 0 20px hsl(350 85% 55% / 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+  .glow-primary-strong {
+    box-shadow: var(--glow-primary-strong);
+  }
+  .glow-destructive {
+    box-shadow: var(--glow-destructive);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-down {
+  animation: slide-down 0.4s ease-out;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: hsl(160 100% 45% / 0.6); }
+  50% { border-color: hsl(160 100% 45% / 0.2); }
+}
+@keyframes pulse-border-red {
+  0%, 100% { border-color: hsl(350 100% 62% / 0.6); }
+  50% { border-color: hsl(350 100% 62% / 0.2); }
+}
+.animate-pulse-border-green {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+.animate-pulse-border-red {
+  animation: pulse-border-red 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px hsl(160 100% 45% / 0.4); }
+  50% { box-shadow: 0 0 40px hsl(160 100% 45% / 0.6); }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+  animation: slide-in-left 0.4s ease-out forwards;
+}
