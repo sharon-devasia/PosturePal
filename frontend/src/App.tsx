@@ -3,11 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner, toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
 import { VisionProcessor, ExtractedFeatures } from "./lib/vision";
+import { apiFetch, getAuthToken } from "./lib/api";
 
 // --- Types ---
 interface PostureData {
@@ -37,6 +39,14 @@ const DEFAULT_SETTINGS: Settings = {
 
 const queryClient = new QueryClient();
 
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+  const token = getAuthToken();
+  if (!token) {
+    return <Navigate to="/auth" replace />;
+  }
+  return children;
+};
+
 const App = () => {
   const [monitoring, setMonitoring] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
@@ -52,10 +62,7 @@ const App = () => {
   const [hasError, setHasError] = useState(false);
   const [data, setData] = useState<PostureData | null>(null);
   
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef<PostureData | null>(null);
-
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const visionRef = useRef<VisionProcessor | null>(null);
   const requestRef = useRef<number | null>(null);
@@ -109,54 +116,22 @@ const App = () => {
     }
   }, []);
 
-  // WebSocket logic
-  const connectWs = useCallback(() => {
-    try {
-      const ws = new WebSocket("ws://localhost:8000/ws/live");
-      wsRef.current = ws;
-      ws.onopen = () => {
-        setConnected(true);
-        setHasError(false);
-      };
-      ws.onclose = () => {
-        setConnected(false);
-        if (wsRef.current === ws) {
-          reconnectRef.current = setTimeout(connectWs, 3000);
-        }
-      };
-      ws.onerror = () => {
-        setConnected(false);
-        setHasError(true);
-        ws.close();
-      };
-      ws.onmessage = (e) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          setData(parsed);
-          dataRef.current = parsed;
-        } catch { /* ignore */ }
-      };
-    } catch {
-      setConnected(false);
-      setHasError(true);
-      reconnectRef.current = setTimeout(connectWs, 3000);
-    }
-  }, []);
-
-  const stopWs = useCallback(() => {
-    if (reconnectRef.current) clearTimeout(reconnectRef.current);
-    if (wsRef.current) {
-      const ws = wsRef.current;
-      wsRef.current = null;
-      ws.close();
-    }
-    setConnected(false);
-    setHasError(false);
-    setData(null);
-  }, []);
+  const evaluatePosture = (features: ExtractedFeatures) => {
+    // Simple heuristic since we do not have a live model locally
+    const isBad = Math.abs(features.forward_lean) > 0.5 || Math.abs(features.side_angle) > 10;
+    return {
+      status: (isBad ? "BAD" : "GOOD") as "GOOD" | "BAD",
+      confidence: 0.92,
+      ...features
+    };
+  };
 
   const startVision = useCallback(async () => {
     try {
+      // Begin Session
+      await apiFetch("/sessions/start", { method: "POST" });
+      setConnected(true);
+
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -166,29 +141,50 @@ const App = () => {
       visionRef.current = new VisionProcessor();
       await visionRef.current.initialize();
 
-      let lastTime = 0;
+      let lastApiTime = 0;
+      let lastProcessTime = 0;
+
       const loop = (time: number) => {
-        // Run vision processing ~10 times per second
-        if (time - lastTime >= 100) {
-          if (videoRef.current && visionRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-            const features = visionRef.current.processFrame(videoRef.current, time);
-            if (features) {
-              wsRef.current.send(JSON.stringify(features));
-            }
-          }
-          lastTime = time;
+        // Run vision processing locally every 100ms 
+        if (time - lastProcessTime >= 100) {
+           if (videoRef.current && visionRef.current) {
+             const features = visionRef.current.processFrame(videoRef.current, time);
+             if (features) {
+                const livePostureData = evaluatePosture(features);
+                setData(livePostureData);
+                dataRef.current = livePostureData;
+
+                // POST to API every 10 seconds
+                if (time - lastApiTime >= 10000) {
+                  apiFetch("/sessions/frame", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      status: livePostureData.status === "GOOD" ? "good" : "bad",
+                      blink_rate: livePostureData.blink_rate,
+                      confidence: livePostureData.confidence,
+                    })
+                  });
+                  lastApiTime = time;
+                }
+             }
+           }
+           lastProcessTime = time;
         }
         requestRef.current = requestAnimationFrame(loop);
       };
-      requestRef.current = requestAnimationFrame(loop);
+      // give an initial 10s offset to fire immediately
+      requestRef.current = requestAnimationFrame((time) => {
+        lastApiTime = time - 10000; 
+        loop(time);
+      });
     } catch (err) {
-      console.error("Camera access denied or vision init failed", err);
+      console.error("Camera access denied or API failed", err);
       setHasError(true);
       setMonitoring(false);
     }
   }, []);
 
-  const stopVision = useCallback(() => {
+  const stopVision = useCallback(async () => {
     if (requestRef.current) {
       cancelAnimationFrame(requestRef.current);
       requestRef.current = null;
@@ -199,18 +195,24 @@ const App = () => {
       videoRef.current.srcObject = null;
     }
     visionRef.current = null;
-  }, []);
+
+    if (connected) {
+       await apiFetch("/sessions/end", { method: "POST" });
+       // Redirect to dashboard is handled in Dashboard component or via Link
+    }
+    setConnected(false);
+    setData(null);
+  }, [connected]);
 
   useEffect(() => {
     if (monitoring) {
       setSessionStartTime(new Date());
-      connectWs();
+      setHasError(false);
       startVision();
     } else {
-      stopWs();
       stopVision();
     }
-  }, [monitoring, connectWs, stopWs, startVision, stopVision]);
+  }, [monitoring, startVision, stopVision]);
 
   // Background Loop (1Hz tick)
   useEffect(() => {
@@ -316,9 +318,10 @@ const App = () => {
         <video id="webcam" ref={videoRef} autoPlay playsInline style={{ display: "none" }} />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Landing {...sharedState} />} />
-            <Route path="/dashboard" element={<Dashboard {...sharedState} />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<ProtectedRoute><Landing {...sharedState} /></ProtectedRoute>} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard {...sharedState} /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
