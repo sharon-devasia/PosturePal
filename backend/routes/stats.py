@@ -37,10 +37,21 @@ def get_overall_stats(
         Session.user_id == current_user.id
     ).scalar() or 0
 
+    best_session = db.query(Session).filter(
+        Session.user_id == current_user.id,
+        Session.posture_score > 0
+    ).order_by(Session.posture_score.desc()).first()
+
+    best_day = {
+        "score": best_session.posture_score if best_session else None,
+        "date": str(best_session.date) if best_session else None
+    } if best_session else None
+
     return {
         "total_days": total_days,
         "total_duration": total_duration,
-        "average_score": round(avg_score, 2)
+        "average_score": round(avg_score, 2),
+        "best_day": best_day
     }
 
 
@@ -76,6 +87,8 @@ def get_current_live_stats(
 
     return {
         "live_status": live_frames[-1].status,
+        "confidence": live_frames[-1].confidence,
+        "blink_rate": live_frames[-1].blink_rate,
         "live_duration_mins": round(
             (total_live_frames * 10) / 60,
             2

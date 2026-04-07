@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@/hooks/use-theme";
+import { clearAuthToken } from "@/lib/api";
 
 interface LandingProps {
   monitoring: boolean;
@@ -38,6 +39,11 @@ const Landing = ({ monitoring, setMonitoring, connected, hasError }: LandingProp
     setMonitoring(!monitoring);
   };
 
+  const performLogout = () => {
+    clearAuthToken();
+    navigate("/auth");
+  };
+
   return (
     <div className="min-h-screen bg-background bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background flex flex-col relative overflow-hidden">
       {/* Decorative Orbs */}
@@ -58,6 +64,7 @@ const Landing = ({ monitoring, setMonitoring, connected, hasError }: LandingProp
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-foreground"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
             )}
           </button>
+          <button onClick={performLogout} className="text-xs text-muted-foreground hover:text-destructive transition-colors ml-4 uppercase tracking-widest font-body font-bold">Logout</button>
         </div>
       </nav>
 

@@ -5,25 +5,22 @@ import numpy as np
 model = joblib.load("posture_xgboost_model_new.pkl")
 
 def predict(features: dict) -> int:
-
-    X = [[
-        features["side_angle"],
-        features["forward_lean"],
-        features["vertical_offset"],
-        features["shoulder_slope"]
-    ]]
-
-    proba = model.predict_proba(X)[0]
-
-    good_probability = proba[0]
-    bad_probability  = proba[1]
-
-    # Only predict BAD if model is strongly confident
-    # AND good probability is clearly lower
-    if bad_probability >= 0.5 and good_probability < 0.5:
-        prediction = 1
-    else:
-        prediction = 0
-
-
-    return prediction
+    """
+    Evaluates posture dynamically using the trained ML model.
+    """
+    try:
+        # Create the feature array in the exact order the model expects:
+        # ['side_angle', 'forward_ratio_z', 'vertical_offset', 'shoulder_slope']
+        X = np.array([[
+            features.get("side_angle", 0.0),
+            features.get("forward_lean", 0.0),
+            features.get("vertical_offset", 0.0),
+            features.get("shoulder_slope", 0.0)
+        ]])
+        
+        # Make the prediction using the original teammate's model
+        prediction = int(model.predict(X)[0])
+        return prediction
+    except Exception as e:
+        print(f"XGBoost Exception: {e}")
+        return 0

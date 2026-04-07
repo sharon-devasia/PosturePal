@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from routes.auth import router as auth_router
 from routes.session import router as sessions_router
 from routes.stats import router as stats_router
+from routes.websocket import router as ws_router
 
 
 @asynccontextmanager
@@ -16,7 +17,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins     = ["http://localhost:5173", "http://localhost:8080"],
+    allow_origins     = ["http://localhost:5173", "http://localhost:8080", "http://localhost:8081", "http://127.0.0.1:5173", "http://127.0.0.1:8080", "http://127.0.0.1:8081"],
     allow_methods     = ["*"],
     allow_headers     = ["*"],
     allow_credentials = True
@@ -26,6 +27,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(sessions_router)
 app.include_router(stats_router)
+app.include_router(ws_router)
 
 
 @app.get("/")

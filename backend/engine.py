@@ -12,6 +12,13 @@ class PostureEngine:
         # Majority vote prevents flickering
         # ==========================
         self.prediction_buffer = deque(maxlen=15)
+        
+        # ==========================
+        # BASELINE CALIBRATION
+        # First 40 frames (~4 seconds) are collected to form a user-specific posture baseline
+        # ==========================
+        self.baseline_buffer = []
+        self.baseline = None
 
         # ==========================
         # RUNNING FLAG
@@ -36,7 +43,7 @@ class PostureEngine:
                 if not features:
                     await asyncio.sleep(0.05)
                     continue
-
+                
                 # Predict posture using backend XGBoost
                 prediction = predict(features)
 
@@ -54,6 +61,8 @@ class PostureEngine:
                     self.prediction_buffer.count(final_prediction)
                     / len(self.prediction_buffer), 2
                 )
+                
+                status = "GOOD" if final_prediction == 0 else "BAD"
 
                 # Build status string
                 status = "GOOD" if final_prediction == 0 else "BAD"

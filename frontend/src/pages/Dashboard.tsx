@@ -103,6 +103,7 @@ const Dashboard = ({
   const [now, setNow] = useState(new Date());
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const dashVideoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   // API STATES
@@ -110,7 +111,11 @@ const Dashboard = ({
   const [todayStats, setTodayStats] = useState<any>(null);
   const [overallStats, setOverallStats] = useState<any>(null);
   const [historyGraphs, setHistoryGraphs] = useState<any[]>([]);
-  const [historySelectedDate, setHistorySelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [historySelectedDate, setHistorySelectedDate] = useState<string>(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  });
   const [historyDateData, setHistoryDateData] = useState<any>(null);
 
   const performLogout = () => {
@@ -169,30 +174,24 @@ const Dashboard = ({
     }
   }, [section, historySelectedDate]);
 
-  // Handle local camera feed
+  // We don't grab new stream here, we will just request the App.tsx's original stream.
+
+  // Safely poll the master camera thread until it successfully connects.
   useEffect(() => {
-    if (monitoring) {
-      const startCamera = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-        } catch (err) {
-          console.error("Error accessing webcam:", err);
-        }
-      };
-      startCamera();
-    } else {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
+    if (!monitoring) {
+       if (dashVideoRef.current) dashVideoRef.current.srcObject = null;
+       return;
     }
+    
+    const id = setInterval(() => {
+       if (dashVideoRef.current && !dashVideoRef.current.srcObject) {
+           const bgVid = document.getElementById("webcam") as HTMLVideoElement;
+           if (bgVid && bgVid.srcObject) {
+               dashVideoRef.current.srcObject = bgVid.srcObject;
+           }
+       }
+    }, 500);
+    return () => clearInterval(id);
   }, [monitoring]);
 
   // Clock tick
@@ -284,7 +283,7 @@ const Dashboard = ({
                 }`}>
                   {monitoring ? (
                     <video
-                      ref={videoRef}
+                      ref={dashVideoRef}
                       autoPlay
                       playsInline
                       muted
@@ -323,11 +322,11 @@ const Dashboard = ({
                         <span className="text-xs font-body font-bold text-muted-foreground uppercase tracking-wider">Session Quality</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-heading text-primary">{currentStats ? currentStats.good_percent : "—"}%</span>
+                        <span className="text-4xl font-heading text-primary">{currentStats && currentStats.live_good_pct !== undefined ? currentStats.live_good_pct : "—"}%</span>
                         <span className="text-xs font-body text-muted-foreground">optimal focus</span>
                       </div>
                       <div className="mt-4 h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${currentStats?.good_percent || 0}%` }} />
+                        <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${currentStats?.live_good_pct || 0}%` }} />
                       </div>
                    </div>
 
@@ -352,7 +351,7 @@ const Dashboard = ({
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-heading text-orange-500 tabular-nums">
-                           {currentStats ? currentStats.live_duration_minutes : "—"}
+                           {currentStats && currentStats.live_duration_mins !== undefined ? currentStats.live_duration_mins : "—"}
                         </span>
                         <span className="text-xs font-body text-muted-foreground">minutes</span>
                       </div>
@@ -430,12 +429,12 @@ const Dashboard = ({
                 <div className="bg-[#0F1419] border border-[#1E2A38] rounded-xl p-6 flex flex-col gap-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-3 opacity-20"><span className="text-4xl font-heading text-white">#T</span></div>
                   <span className="text-xs uppercase tracking-widest text-[#5A7090]">Today Duration</span>
-                  <span className="text-3xl font-bold text-white relative z-10">{todayStats?.total_duration_minutes || 0} <span className="text-lg text-[#5A7090]">min</span></span>
+                  <span className="text-3xl font-bold text-white relative z-10">{todayStats?.today_total?.total_duration_mins || 0} <span className="text-lg text-[#5A7090]">min</span></span>
                 </div>
                 <div className="bg-[#0F1419] border border-[#1E2A38] rounded-xl p-6 flex flex-col gap-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-3 opacity-20"><span className="text-4xl font-heading text-white">#T</span></div>
                   <span className="text-xs uppercase tracking-widest text-[#5A7090]">Today Alerts</span>
-                  <span className="text-3xl font-bold text-[#FF6B35] relative z-10">{todayStats?.total_alerts || 0}</span>
+                  <span className="text-3xl font-bold text-[#FF6B35] relative z-10">{todayStats?.today_total?.saved_alerts || 0}</span>
                 </div>
                 <div className="bg-[#0F1419] border border-[#1E2A38] rounded-xl p-6 flex flex-col gap-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-3 opacity-20"><span className="text-4xl font-heading text-white">ALL</span></div>
@@ -456,7 +455,7 @@ const Dashboard = ({
                   <h3 className="text-sm font-heading tracking-widest text-[#5A7090]">POSTURE SCORE HISTORY</h3>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={historyGraphs}>
+                      <BarChart data={historyGraphs} maxBarSize={60}>
                         <defs>
                           <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#00E5A0" />
@@ -467,9 +466,9 @@ const Dashboard = ({
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1E2A38" />
                         <XAxis dataKey="date" stroke="#5A7090" tick={{ fill: "#5A7090" }} />
                         <YAxis domain={[0, 100]} stroke="#5A7090" tick={{ fill: "#5A7090" }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" dataKey="score" stroke="url(#scoreGradient)" strokeWidth={3} dot={true} />
-                      </LineChart>
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                        <Bar dataKey="score" fill="url(#scoreGradient)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
@@ -498,28 +497,20 @@ const Dashboard = ({
                     />
                  </div>
                  <div className="flex-1 flex flex-col gap-4">
-                    {historyDateData && historyDateData.sessions ? (
-                       historyDateData.sessions.length > 0 ? (
-                         historyDateData.sessions.map((session: any, idx: number) => (
-                           <div key={idx} className="bg-card/50 p-6 border border-border/50 rounded-xl flex items-center justify-between">
+                    {historyDateData && historyDateData.id ? (
+                           <div className="bg-card/50 p-6 border border-border/50 rounded-xl flex items-center justify-between">
                               <div className="flex flex-col">
-                                 <span className="text-sm font-bold opacity-50 mb-1">Session {idx + 1}</span>
-                                 <span className="text-xl font-heading">{session.duration_minutes || session.duration} min</span>
+                                 <span className="text-sm font-bold opacity-50 mb-1">Session Data</span>
+                                 <span className="text-xl font-heading">{historyDateData.total_duration} min</span>
                               </div>
                               <div className="flex flex-col items-end">
                                  <span className="text-sm font-bold opacity-50 mb-1">Focus Score</span>
-                                 <span className="text-xl font-heading text-primary">{session.score}%</span>
+                                 <span className="text-xl font-heading text-primary">{historyDateData.posture_score}%</span>
                               </div>
                            </div>
-                         ))
-                       ) : (
-                         <div className="bg-card/20 p-8 rounded-xl border border-border/30 text-center text-muted-foreground">
-                            No sessions found for this date.
-                         </div>
-                       )
                     ) : (
                        <div className="bg-card/20 p-8 rounded-xl border border-border/30 text-center text-muted-foreground">
-                          Loading or No Data available.
+                          Loading or No Data available for this date.
                        </div>
                     )}
                  </div>

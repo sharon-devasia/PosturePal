@@ -66,6 +66,9 @@ const App = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const visionRef = useRef<VisionProcessor | null>(null);
   const requestRef = useRef<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const sessionActive = useRef(false);
+  const streamLock = useRef(false);
 
   // Background Timers
   const [badTimer, setBadTimer] = useState(0);
@@ -104,8 +107,10 @@ const App = () => {
         description: "Posture correction required",
         duration: 5000,
         action: {
-          label: "View Data",
-          onClick: () => window.location.href = "/dashboard",
+          label: "View Tracker",
+          onClick: () => {
+             // safely dismiss without breaking state
+          },
         },
       });
     } else {
@@ -116,23 +121,35 @@ const App = () => {
     }
   }, []);
 
-  const evaluatePosture = (features: ExtractedFeatures) => {
-    // Simple heuristic since we do not have a live model locally
-    const isBad = Math.abs(features.forward_lean) > 0.5 || Math.abs(features.side_angle) > 10;
-    return {
-      status: (isBad ? "BAD" : "GOOD") as "GOOD" | "BAD",
-      confidence: 0.92,
-      ...features
-    };
-  };
+  // Replaced local evaluatePosture with direct backend WebSockets
 
   const startVision = useCallback(async () => {
+    if (streamLock.current) return;
+    streamLock.current = true;
+    
     try {
+      sessionActive.current = true;
+      if (videoRef.current && videoRef.current.srcObject) {
+          const old = videoRef.current.srcObject as MediaStream;
+          old.getTracks().forEach((t) => t.stop());
+      }
       // Begin Session
       await apiFetch("/sessions/start", { method: "POST" });
+      
+      if (!sessionActive.current) {
+          streamLock.current = false;
+          return;
+      }
       setConnected(true);
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      
+      if (!sessionActive.current) {
+         stream.getTracks().forEach(t => t.stop());
+         streamLock.current = false;
+         return;
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -141,27 +158,37 @@ const App = () => {
       visionRef.current = new VisionProcessor();
       await visionRef.current.initialize();
 
+      // Connect WebSocket
+      const wsUrl = `ws://127.0.0.1:8000/ws/stream?token=${getAuthToken() || ""}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+         const result = JSON.parse(event.data);
+         setData(result);
+         dataRef.current = result;
+      };
+
       let lastApiTime = 0;
       let lastProcessTime = 0;
 
       const loop = (time: number) => {
         // Run vision processing locally every 100ms 
         if (time - lastProcessTime >= 100) {
-           if (videoRef.current && visionRef.current) {
+           if (videoRef.current && visionRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
              const features = visionRef.current.processFrame(videoRef.current, time);
              if (features) {
-                const livePostureData = evaluatePosture(features);
-                setData(livePostureData);
-                dataRef.current = livePostureData;
+                // Instantly forward coordinates to AI backend
+                wsRef.current.send(JSON.stringify(features));
 
-                // POST to API every 10 seconds
-                if (time - lastApiTime >= 10000) {
+                // Save frame metadata loop
+                if (dataRef.current && time - lastApiTime >= 10000) {
                   apiFetch("/sessions/frame", {
                     method: "POST",
                     body: JSON.stringify({
-                      status: livePostureData.status === "GOOD" ? "good" : "bad",
-                      blink_rate: livePostureData.blink_rate,
-                      confidence: livePostureData.confidence,
+                      status: dataRef.current.status === "GOOD" ? "good" : "bad",
+                      blink_rate: dataRef.current.blink_rate,
+                      confidence: dataRef.current.confidence,
                     })
                   });
                   lastApiTime = time;
@@ -181,10 +208,13 @@ const App = () => {
       console.error("Camera access denied or API failed", err);
       setHasError(true);
       setMonitoring(false);
+      streamLock.current = false;
     }
   }, []);
 
   const stopVision = useCallback(async () => {
+    sessionActive.current = false;
+    streamLock.current = false;
     if (requestRef.current) {
       cancelAnimationFrame(requestRef.current);
       requestRef.current = null;
@@ -193,6 +223,10 @@ const App = () => {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
     }
     visionRef.current = null;
 
