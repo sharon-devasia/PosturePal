@@ -124,7 +124,7 @@ const App = () => {
         new Notification(title, {
           body,
           icon: "/favicon.ico",
-          tag: "posturepal-alert",        // collapse duplicate notifications
+          tag: "posturepal-alert",
           requireInteraction: false,
         });
       } catch (_) {
@@ -134,14 +134,10 @@ const App = () => {
   }, []);
 
   const addAlert = useCallback((message: string, isWarning: boolean = false) => {
-    // Always fire a native OS notification so the user sees it
-    // even when the tab is unfocused or the browser is minimized
-    fireNativeNotification(
-      "PosturePal",
-      message
-    );
+    // Fire native OS notification (works in background tabs / minimized browser)
+    fireNativeNotification("PosturePal", message);
 
-    // Also show the in-app sonner toast for when the tab is visible
+    // Also show in-app sonner toast for when tab is visible
     if (isWarning) {
       toast.warning(message, {
         description: "Posture correction required",
