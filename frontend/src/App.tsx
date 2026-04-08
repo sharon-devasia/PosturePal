@@ -32,7 +32,7 @@ interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   breakReminderMin: 25,
-  postureAlertThreshold: 10,
+  postureAlertThreshold: 30,
   blinkRateThreshold: 12,
   notificationsEnabled: true,
 };
@@ -48,6 +48,20 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 const App = () => {
+  // Native notification permission state
+  const notifPermission = useRef<NotificationPermission>(
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+
+  // Request browser notification permission on first mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().then((p) => {
+        notifPermission.current = p;
+      });
+    }
+  }, []);
+
   const [monitoring, setMonitoring] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem("posturepal-settings");
@@ -101,7 +115,29 @@ const App = () => {
   const formatTime = (d: Date) =>
     d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+  const fireNativeNotification = useCallback((title: string, body: string) => {
+    if (
+      typeof Notification !== "undefined" &&
+      notifPermission.current === "granted"
+    ) {
+      try {
+        new Notification(title, {
+          body,
+          icon: "/favicon.ico",
+          tag: "posturepal-alert",
+          requireInteraction: false,
+        });
+      } catch (_) {
+        // Safari / iOS may throw — silently ignore
+      }
+    }
+  }, []);
+
   const addAlert = useCallback((message: string, isWarning: boolean = false) => {
+    // Fire native OS notification (works in background tabs / minimized browser)
+    fireNativeNotification("PosturePal", message);
+
+    // Also show in-app sonner toast for when tab is visible
     if (isWarning) {
       toast.warning(message, {
         description: "Posture correction required",
@@ -119,7 +155,7 @@ const App = () => {
         duration: 4000,
       });
     }
-  }, []);
+  }, [fireNativeNotification]);
 
   // Replaced local evaluatePosture with direct backend WebSockets
 
