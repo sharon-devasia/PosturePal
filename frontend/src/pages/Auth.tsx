@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { setAuthToken, getAuthToken, apiFetch } from "@/lib/api";
 import { useTheme } from "@/hooks/use-theme";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/api";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ const Auth = () => {
         body = JSON.stringify({ name, email, password });
       }
 
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
