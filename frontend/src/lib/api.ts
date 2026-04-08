@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://localhost:8000";
+export const API_BASE_URL = "https://posturepal-api-1077447360745.us-central1.run.app";
 
 export const getAuthToken = () => localStorage.getItem("access_token");
 
