@@ -195,31 +195,16 @@ const App = () => {
       await visionRef.current.initialize();
 
       // Connect WebSocket
-      // Connect WebSocket with auto reconnect
-      const connectWS = () => {
-        if (!sessionActive.current) return;
-        const wsUrl = `wss://posturepal-api-1077447360745.us-central1.run.app/ws/stream?token=${getAuthToken() || ""}`;
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-      
-        ws.onmessage = (event) => {
-          const result = JSON.parse(event.data);
-          setData(result);
-          dataRef.current = result;
-        };
-      
-        ws.onclose = () => {
-          if (sessionActive.current) {
-            console.log("WebSocket closed, reconnecting in 3s...");
-            setTimeout(connectWS, 3000);
-          }
-        };
-      
-        ws.onerror = () => {
-          ws.close();
-        };
+       // Connect WebSocket
+      const wsUrl = `wss://posturepal-api-1077447360745.us-central1.run.app/ws/stream?token=${getAuthToken() || ""}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+         const result = JSON.parse(event.data);
+         setData(result);
+         dataRef.current = result;
       };
-      connectWS();
 
       let lastApiTime = 0;
       let lastProcessTime = 0;
@@ -307,13 +292,18 @@ const App = () => {
     const interval = setInterval(() => {
       const currentData = dataRef.current;
       if (!currentData) return;
-
       // Posture check
       if (currentData.status === "BAD") {
         setBadTimer((t) => {
           const next = t + 1;
           if (settings.notificationsEnabled && next === settings.postureAlertThreshold) {
             addAlert("Bad posture detected! Please sit upright.", true);
+            if (notifPermission.current === "granted") {
+              new Notification("PosturePal ⚠️", {
+                body: "Bad posture detected! Please sit upright.",
+                icon: "/favicon.ico"
+              });
+            }
             setBadPostureAlerts(a => a + 1);
           }
           return next;
@@ -323,13 +313,18 @@ const App = () => {
         setBadTimer(0);
         setGoodFrames(f => f + 1);
       }
-
       // Blink check
       if (currentData.blink_rate < 12) {
         setLowBlinkTimer((t) => {
           const next = t + 1;
           if (next === 60) {
             addAlert("Low blink rate detected. Rest your eyes!");
+            if (notifPermission.current === "granted") {
+              new Notification("PosturePal 👀", {
+                body: "Low blink rate detected. Rest your eyes!",
+                icon: "/favicon.ico"
+              });
+            }
             setLowBlinkAlerts(a => a + 1);
           }
           return next;
@@ -337,11 +332,16 @@ const App = () => {
       } else {
         setLowBlinkTimer(0);
       }
-
       // Break timer
       setBreakTimer((t) => {
         if (t <= 1) {
           addAlert("Break time! Take 5 minutes to stretch.");
+          if (notifPermission.current === "granted") {
+            new Notification("PosturePal ⏰", {
+              body: "Break time! Take 5 minutes to stretch.",
+              icon: "/favicon.ico"
+            });
+          }
           setBreakAlerts(a => a + 1);
           return settings.breakReminderMin * 60;
         }
