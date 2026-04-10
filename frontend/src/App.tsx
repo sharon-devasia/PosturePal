@@ -195,15 +195,31 @@ const App = () => {
       await visionRef.current.initialize();
 
       // Connect WebSocket
-      const wsUrl = `ws://127.0.0.1:8000/ws/stream?token=${getAuthToken() || ""}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-         const result = JSON.parse(event.data);
-         setData(result);
-         dataRef.current = result;
+      // Connect WebSocket with auto reconnect
+      const connectWS = () => {
+        if (!sessionActive.current) return;
+        const wsUrl = `wss://posturepal-api-1077447360745.us-central1.run.app/ws/stream?token=${getAuthToken() || ""}`;
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+      
+        ws.onmessage = (event) => {
+          const result = JSON.parse(event.data);
+          setData(result);
+          dataRef.current = result;
+        };
+      
+        ws.onclose = () => {
+          if (sessionActive.current) {
+            console.log("WebSocket closed, reconnecting in 3s...");
+            setTimeout(connectWS, 3000);
+          }
+        };
+      
+        ws.onerror = () => {
+          ws.close();
+        };
       };
+      connectWS();
 
       let lastApiTime = 0;
       let lastProcessTime = 0;
