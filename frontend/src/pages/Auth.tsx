@@ -8,7 +8,7 @@ import { API_BASE_URL } from "@/lib/api";
 const Auth = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  
+
   // If already logged in, redirect away from auth page
   useEffect(() => {
     if (getAuthToken()) {
@@ -17,7 +17,7 @@ const Auth = () => {
   }, [navigate]);
 
   const [isLogin, setIsLogin] = useState(true);
-  
+
   // Form Fields
   const [identifier, setIdentifier] = useState(""); // For Login
   const [name, setName] = useState(""); // For Register
@@ -43,7 +43,7 @@ const Auth = () => {
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+          "Content-Type": "application/json"
         },
         body,
       });
@@ -94,44 +94,44 @@ const Auth = () => {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           {isLogin ? (
-             <div className="flex flex-col gap-2">
-                <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Username or Email</label>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Username or Email</label>
+              <input
+                type="text"
+                required
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="bg-secondary/30 border border-border/50 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-colors font-body"
+                placeholder="Enter your username or email"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Name</label>
                 <input
                   type="text"
                   required
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="bg-secondary/30 border border-border/50 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-colors font-body"
-                  placeholder="Enter your username or email"
+                  placeholder="Enter your full name"
                 />
-             </div>
-          ) : (
-             <>
-               <div className="flex flex-col gap-2">
-                  <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="bg-secondary/30 border border-border/50 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-colors font-body"
-                    placeholder="Enter your full name"
-                  />
-               </div>
-               <div className="flex flex-col gap-2">
-                  <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-secondary/30 border border-border/50 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-colors font-body"
-                    placeholder="Enter your email address"
-                  />
-               </div>
-             </>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-secondary/30 border border-border/50 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-colors font-body"
+                  placeholder="Enter your email address"
+                />
+              </div>
+            </>
           )}
-          
+
           <div className="flex flex-col gap-2">
             <label className="text-xs font-body font-bold text-muted-foreground uppercase tracking-widest">Password</label>
             <input
@@ -147,18 +147,17 @@ const Auth = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-4 mt-2 rounded-xl font-heading tracking-widest font-bold transition-all ${
-              loading ? "bg-primary/50 text-foreground/50 cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] shadow-[0_0_20px_rgba(var(--primary),0.3)]"
-            }`}
+            className={`w-full py-4 mt-2 rounded-xl font-heading tracking-widest font-bold transition-all ${loading ? "bg-primary/50 text-foreground/50 cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] shadow-[0_0_20px_rgba(var(--primary),0.3)]"
+              }`}
           >
             {loading ? "PROCESSING..." : isLogin ? "LOGIN" : "GET STARTED"}
           </button>
         </form>
 
         <div className="mt-8 text-center">
-          <button 
-            type="button" 
-            onClick={() => setIsLogin(!isLogin)} 
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
             className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
           >
             {isLogin ? "Don't have an account? Register" : "Already have an account? Log in"}
