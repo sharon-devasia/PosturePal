@@ -195,7 +195,7 @@ const App = () => {
       await visionRef.current.initialize();
 
       // Connect WebSocket
-      const wsUrl = `ws://127.0.0.1:8000/ws/stream?token=${getAuthToken() || ""}`;
+      const wsUrl = `wss://posturepal-api-1077447360745.us-central1.run.app/ws/stream?token=${getAuthToken() || ""}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
